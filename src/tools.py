@@ -38,8 +38,10 @@ class BrownianMotion(object):
 
     def reset(self):
         # init memory
-        self.time = init_time
-        self.bm = np.array([start_point]) #if type(start_point) in [float, int] else np.array([start_point])
+        self.time = self.init_time
+        self.bm = np.array([self.start_point]) #if type(start_point) in [float, int] else np.array([start_point])
+        self.flag_multidimensional_bm = False if self.dim == (1,) else True 
+
 
     def run(self, val):
         assert(val >= 0)
