@@ -2,6 +2,7 @@ import numpy as np
 import random
 import math
 import logging
+import sys
 import time
 
 
@@ -12,7 +13,6 @@ class DoubleWellDynamics(object):
     dX_t = - nabla V(X_t)dt + \sqrt(2 \ beta ^-1) dW_t
     """
     def __init__(self, h=1, w=100, sig=100, beta=100):
-
         # meta vars
         assert(h >= 0 and w >= 0)
         self.h = h
@@ -29,11 +29,9 @@ class DoubleWellDynamics(object):
             return self.h * (1 - (abs(x) - self.r0 - self.w) ** 2 / self.w**2) ** 2  
         
         elif dim == 2:
+            # eq page 45 book
             assert(isinstance(x, list))
-            r = sum([i**2 for i in x]) ** (1/2)
-
-            # page 44 book
-            return self.h * (1 - (r - self.r0 - self.w) ** 2 / self.w**2) ** 2
+            return 1/6 * (4 * (1 - x[0] **2 - x[1] **2) ** 2 + 2 * (x[0] ** 2 - 2) ** 2 + ((x[0] + x[1]) ** 2 - 1) ** 2 + ((x[0] - x[1]) ** 2 - 1) **2)
         else:
             raise NotImplementedError("potential: variable 'dim' is implemented for dimension 1 or 2 only.")
 
@@ -45,15 +43,13 @@ class DoubleWellDynamics(object):
         if dim == 1:
             return 2 * self.h * (1 - (abs(x) - self.r0 - self.w) ** 2 / (self.w **2) ) * (-2) * (abs(x) - self.r0 - self.w) / (self.w ** 2) * 2
         elif dim == 2:
-            r = sum([i**2 for i in x]) ** (1/2)
+            # eq page 45 book
+            partial_x = 1/6 * (-16 * (1 - x[0]**2 - x[1]**2) * x[0] + 8 * x[0] * (x[0] ** 2 - 2) + 4 * (x[0] + x[1]) * ((x[0] + x[1])**2 - 1) + 4 * (x[0] - x[1]) * ((x[0] - x[1])**2 - 1) 
+            )
+            partial_y = 1/6 * (-16 * (1 - x[0]**2 - x[1]**2) * x[1]  + 4 * (x[0] + x[1]) * ((x[0] + x[1])**2 - 1) - 4 * (x[0] - x[1]) * ((x[0] - x[1])**2 - 1) 
+            )
 
-            # dealing with derivative around r=0
-            if True:
-                grads = [2 * self.h * (1 - (r - self.r0 - self.w) ** 2 / self.w **2) * (-2) * (r - self.r0 - self.w) / (self.w ** 2) * 2 * x[i] / r for i in range(dim)]
-            else:
-                grads = [2 * self.h * (1 - (r - self.r0 - self.w) ** 2 / self.w **2) * (-2) * (r - self.r0 - self.w) / (self.w ** 2) * 2 * math.sqrt(x[i]) for i in range(dim)]
-
-            return np.array(grads)
+            return np.array([partial_x, partial_y])
         else:
             raise NotImplementedError("grad_potential: variable 'dim' is implemented for dimension 1 or 2 only.")
 
@@ -73,7 +69,7 @@ class DoubleWellDynamics(object):
             except:
                 raise AssertionError("run: only dynamics of dimension 1 and 2 are supported.")
 
-        logging.warning(f"run: running dynamics in dimension {dim}.")
+        logging.warning(f"run: running dynamics.")
 
         # run
         t = start_time
@@ -85,8 +81,8 @@ class DoubleWellDynamics(object):
             x = x_previous - self.grad_potential(dim, x_previous) * time_increment + cste * np.random.normal(0, math.sqrt(time_increment), size=dim)
             t += time_increment
 
-            print(f"x: {x}")
-            print(f"grad: {self.grad_potential(dim, x)}")
+            logging.debug(f"x: {x}")
+            logging.debug(f"grad: {self.grad_potential(dim, x)}")
 
             if dim == 2:
                 self.x.append((t, list(x)))
@@ -97,14 +93,14 @@ class DoubleWellDynamics(object):
         return np.array(self.x)
 
     def plot_1d(self, interval=50, plot_pot=True, plot_grad=True, plot_dynamics=True):
-        #plot potential 1D
+        # plot potential 1D
         if plot_pot == True:
             pot = [self.potential(dim=1, x=i) for i in range(-500, 500, 1)]
             plt.plot(pot)
             plt.title("Double well potential in 1D")
             plt.show()
 
-        #plot gradients 1D
+        # plot gradients 1D
         if plot_grad == True:
             grad_pot = [self.grad_potential(dim=1, x=i) for i in range(-500, 500, 1)]
             plt.plot(grad_pot)
@@ -169,19 +165,19 @@ class DoubleWellDynamics(object):
             plt.show()
 
         if plot_dynamics == True:
-            iterations = 1000000
+            start_pos = [0.1, 0.1]
+            iterations = 1000
             logging.warning(f"plot2d: simulation of {iterations} time steps about to start. This might take up to minute.")
             time.sleep(2)
-            dyn = obj.run([50, 50], iterations, time_increment=40)
+            dyn = obj.run(start_pos, iterations, time_increment=0.2)
             dyn = [i[1] for i in dyn]
             x, y = zip(*dyn)
             plt.plot(x,y)
             plt.title(f"Metastability for particle 2D")
             plt.show()
 
-
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     obj = DoubleWellDynamics()
-    obj.plot_1d(300)
-    obj.plot_2d(300)
+    obj.plot_1d(1.2, plot_pot=True, plot_grad=True)
+    obj.plot_2d(1.2, plot_pot=True, plot_grad=True)
