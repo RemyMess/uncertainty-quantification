@@ -1,4 +1,3 @@
-#%%
 import numpy as np
 import random
 import math
@@ -6,7 +5,7 @@ import logging
 import sys
 import time
 
-#%%
+
 class DoubleWellDynamics(object):
     """
     Computational experience for the dynamics of a particle in a 1D/2D double well potential whose dynamics
@@ -184,17 +183,16 @@ class DoubleWellDynamics(object):
             logging.warning(f"plot2d: simulation of {iterations} time steps about to start. This might take up to minute.")
             time.sleep(2)
             dyn = obj.run(start_pos, iterations, time_increment=0.2)
-            dyn = [i[1] for i in dyn]
-            x, y = zip(*dyn)
-            plt.plot(iterations*0.2,x)
-            plt.title(f"Metastability for particle 2D")
+            dyn = [i[1][0] for i in dyn]
+            x = iterations * 0.2 * np.array(range(1, len(dyn)+1))
+
+            plt.plot(x, dyn)
+            plt.title(f"Metastability for particle in projected on the x-axis")
             plt.show()
-#%%
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     obj = DoubleWellDynamics()
-    #obj.plot_1d(1.2, plot_pot=True, plot_grad=True)
-    #obj.plot_2d(1.2, plot_pot=True, plot_grad=True)
-    obj.plot_2d(1.2, plot_dynamics2=True)
+    obj.plot_1d(1.2, plot_pot=True, plot_grad=True)
+    obj.plot_2d(1.2, plot_pot=True, plot_grad=True)
 
-# %%
