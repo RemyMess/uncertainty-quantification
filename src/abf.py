@@ -4,6 +4,7 @@ import math
 import logging
 import sys
 import time
+import matplotlib.pyplot as plt
 
 
 class AdaptiveBiasingForce(object):
@@ -50,6 +51,7 @@ class AdaptiveBiasingForce(object):
                           + 2 * (x1 ** 2 - 2) ** 2 
                           + ((x1 + x2) ** 2 - 1) ** 2 
                           + ((x1 - x2) ** 2 - 1) **2)
+
         else:
             raise NotImplementedError
 
@@ -66,11 +68,19 @@ class AdaptiveBiasingForce(object):
         if self.dim == 2:
             x1, x2 = x
 
-            partial_x = - 4/3 * (4 * x1**3 + x2*(x1**2 + x2**2 - 1) 
-                            + x1*(3*x2**2 - 5) )
-            partial_y = 1/6 * (-16 * (1 - x1**2 - x2**2) * x2  
-                               + 4 * (x1 + x2) * ((x1 + x2)**2 - 1) 
-                               - 4 * (x1 - x2) * ((x1 - x2)**2 - 1))
+            # partial_x = 1/6 * (-16 * (1 - x1**2 - x2**2) * x1 
+            #                    + 8 * x1 * (x1 ** 2 - 2) 
+            #                    + 4 * (x1 + x2) * ((x1 + x2)**2 - 1) 
+            #                    + 4 * (x1 - x2) * ((x1 - x2)**2 - 1) 
+            # )
+            # partial_y = 1/6 * (-16 * (1 - x1**2 - x2**2) * x2  
+            #                    + 4 * (x1 + x2) * ((x1 + x2)**2 - 1) 
+            #                    - 4 * (x1 - x2) * ((x1 - x2)**2 - 1) 
+            # )
+            
+            partial_x = 4/3*x1*(4*x1**2 + 5*x2**2 -5)
+            partial_y = 4/3*x2*(5*x1**2 + 3*x2**2 -3)
+            
             return np.array([partial_x, partial_y]) 
 
     def f(self, x):
@@ -85,9 +95,7 @@ class AdaptiveBiasingForce(object):
         """
         if self.dim == 2:
             x1, x2 = x
-            return 2/self.beta/x1**3 - 8/3 * (4 * x1 **3 + x1**2*x2 
-                                              + 3*x1*x2**2-5*x1 
-                                              + x2**3 - x2) / (x1**2)
+            return 2/self.beta/x1**3 - 8*x1/3 * (4 * x1 **2 + 5*x2**2-5) / (x1**2)
 
     def reac_coord(self, x):
         """Reaction coordinate xi (dimensionality reducting transformation)
@@ -121,7 +129,7 @@ class AdaptiveBiasingForce(object):
         for l in range(u):
             if z[l] <= self.reac_coord(self.paths[i]) < z[l+1]:
                 return l
-        raise Exception(f"_select_zl: no value found; z={z}, q={self.reac_coord(self.paths[i])}")
+        raise Exception(f"_select_zl: no value found; z={z},q={self.reac_coord(self.paths[i])}")
         
     def run(self, N, T, n, m, u):
         """Run the biased dynamics following the ABF method
@@ -130,7 +138,7 @@ class AdaptiveBiasingForce(object):
             N (int): number of replicas of paths
             T (int): terminal time
             n (int): number of total time steps in the discretisation
-            m (int): biaising force updating factor (i.e. number of times steps 
+            m (int): biasing force updating factor (i.e. number of times steps 
             after which an update is done)
             u (int): number of total space steps in the discretisation
         """
@@ -151,25 +159,12 @@ class AdaptiveBiasingForce(object):
         gamma = np.ones(m_hat) * self.f(self.init_cond)
         gamma_history = [[] for _ in range(m_hat)] 
         
-        # Note: N_in[i][j] = N_{ij}
-        N_in = [np.zeros(u) for _ in range(int(m_hat))]  
-              
         # run ABF
         for k in range(m_hat):
+            N_in = np.zeros(u)  
             for j in range(m):
                 for i in range(1, N):
                     z_ijk = self._select_zl(i, k, j, u, m, z)
-                    z_ijk_old = z_ijk
-                    
-                    # except Exception as e:
-                    #     logging.warning(f"run: _select_zl, {e}.")
-                    
-                    
-                    # print(f"grad: {self.grad_potential(self.paths[i-1][k*m + j])*Dt }")
-                    term1 = self.grad_potential(self.paths[i-1])*Dt 
-                    term2 = np.array([gamma[z_ijk-1] * Dt, 0]) 
-                    term3 = math.sqrt(Dt) * np.random.normal(0, 1, size=2)
-                                        
                     new_val = self.paths[i-1] - self.grad_potential(self.paths[i-1])*Dt + np.array([gamma[z_ijk-1], 0]) * Dt + math.sqrt(Dt) * np.random.normal(0, 1, size=2)
                     logging.warning(f"new_val={new_val}")
                     
@@ -178,20 +173,101 @@ class AdaptiveBiasingForce(object):
                     self.paths[i-1] = new_val
                     
             for l in range(u):
-                n_bin = (self.paths[l][-1][0] 
-                         - self.l_bound) // (self.h_bound - self.l_bound)/u
-                N_in[k][n_bin] +=1  
-                
+                # counting
+                for n_path in range(N):
+                    n_bin = int((self.paths[n_path][0] 
+                            - self.l_bound) - l * (self.h_bound - self.l_bound)/u)
+                    
+                    if n_bin == 0:
+                        N_in[l] += 1  
+                    
                 # Update gamma
-                gamma[k+1][l] = sum([self.f(self.paths[i][-1]) 
-                                     for i in range(N+1)]) / N_in[k][l]
-             
+                if N_in[0] != 0:
+                    gamma[l] = sum([self.f(self.paths[i]) 
+                                    for i in range(N)]) / float(N_in[l])
+                    logging.warning(f"Updated value for gamma: {gamma[l]}")
+                else:
+                    gamma[l] = 0
+                
         return self.paths   
     
-    def plot(self):
-        pass
+    def plot(self, interval=1.4, dim=2, plot_pot=False, plot_grad=False, 
+             plot_dynamics=True, plot_dynamics2=True):
+        # plot grad 2D
+        if plot_pot == True:
+            x = np.linspace(-interval, interval, 30)
+            y = np.linspace(-interval, interval, 30)
+            X, Y = np.meshgrid(x,y)
+
+            def func_wrapper(x1, x2):
+                return self.potential(x=[x1,x2])
+        
+            Z = func_wrapper(X, Y)
+            fig = plt.figure()
+            ax = plt.axes(projection='3d')
+            ax.contour3D(X, Y, Z, 50, cmap='binary')
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+            ax.set_zlabel('z')
+            plt.title("Double well potential in 2D")
+            plt.show()
+
+        # plot gradients 2D
+        if plot_grad == True:
+            # Make the grid
+            x, y = np.meshgrid(np.arange(-interval, interval, interval/10),
+                                np.arange(-interval, interval, interval/10))
+
+            def func_wrapper(x1, x2):
+                return self.grad_potential(x=[x1,x2])
+
+            U,V = func_wrapper(x, y)
+            fig, ax = plt.subplots()
+            ax.quiver(x, y, U, V)
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+            ax.set_ylabel('z')
+            plt.title("Gradient of the potential in 2D")
+
+            plt.show()
+        
+        # plot dynamics
+        if plot_dynamics == True:
+            start_pos = [0.1, 0.1]
+            iterations = 1000
+            logging.warning(f"plot2d: simulation of {iterations} time steps about to start. This might take up to minute.")
+            time.sleep(2)
+            obj.run(N=10, T=10, n=10000, m=100, u=5)
+            
+            def get_path(i):
+                return zip(*self.paths_history[i])
+
+            for i in range(10):
+                x,y = get_path(i)
+                plt.plot(x,y)
+                plt.title(f"Metastability for particle 2D using the RBF method")
+                plt.show()
+                
+        # plot dynamics projected
+        if plot_dynamics2 == True:
+            start_pos = [0.1, 0.1]
+            iterations = 10000
+            logging.warning(f"plot2d: simulation of {iterations} time steps about to start. This might take up to minute.")
+            time.sleep(2)
+            dyn = obj.run(N=10, T=10, n=iterations, m=10, u=1000)
+            
+            def get_path(i):
+                return zip(*self.paths_history[i])
+            
+            for i in range(10):
+                x1, x2 = get_path(i)
+                plt.plot(range(10000), x1)
+                plt.title(f"Metastability for particle in projected on the x-axis using the RBF method")
+                plt.show()
     
     
 if __name__ == "__main__":
-    obj = AdaptiveBiasingForce(init_cond=[0.2, 0.2], l_bound=-3000, h_bound=3000)
-    print(obj.run(N=10, T=10, n=10000, m=1000, u=10))
+    obj = AdaptiveBiasingForce(init_cond=[0.5, 0], l_bound=-3000, h_bound=3000)
+    obj.plot(plot_dynamics=False)
+    # print(obj.run(N=10, T=10, n=10000, m=100, u=5)
+    
