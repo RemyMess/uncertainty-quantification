@@ -81,8 +81,8 @@ class DoubleWellDynamics(object):
             x = x_previous - self.grad_potential(dim, x_previous) * time_increment + cste * np.random.normal(0, math.sqrt(time_increment), size=dim)
             t += time_increment
 
-            logging.debug(f"x: {x}")
-            logging.debug(f"grad: {self.grad_potential(dim, x)}")
+            logging.warning(f"x: {x}")
+            logging.warning(f"grad: {self.grad_potential(dim, x)}")
 
             if dim == 2:
                 self.x.append((t, list(x)))
@@ -167,27 +167,24 @@ class DoubleWellDynamics(object):
         if plot_dynamics == True:
             start_pos = [0.1, 0.1]
             iterations = 1000
+            delta_t = 0.1
             logging.warning(f"plot2d: simulation of {iterations} time steps about to start. This might take up to minute.")
             time.sleep(2)
-            dyn = obj.run(start_pos, iterations, time_increment=0.2)
+            dyn = obj.run(start_pos, iterations, time_increment=delta_t)
             dyn = [i[1] for i in dyn]
             x, y = zip(*dyn)
             plt.plot(x,y)
-            plt.title(f"Metastability for particle 2D")
+            plt.title(f"2D-Metastability; {iterations} iterations, delta_t = {delta_t}")
+            plt.xlabel("x position")
+            plt.ylabel("y position")
             plt.show()
         
-        # plot metastable behaviour
-        if plot_dynamics2 == True:
-            start_pos = [0.1, 0.1]
-            iterations = 1000
-            logging.warning(f"plot2d: simulation of {iterations} time steps about to start. This might take up to minute.")
-            time.sleep(2)
-            dyn = obj.run(start_pos, iterations, time_increment=0.2)
-            dyn = [i[1][0] for i in dyn]
-            x = iterations * 0.2 * np.array(range(1, len(dyn)+1))
-
-            plt.plot(x, dyn)
-            plt.title(f"Metastability for particle in projected on the x-axis")
+            # plot metastable behaviour
+            t = delta_t * np.array(range(1, len(dyn)+1))
+            plt.plot(t, x)
+            plt.title(f"Dynamics projected on the x-axis; {iterations} iterations, delta_t = {delta_t}")
+            plt.xlabel("time")
+            plt.xlabel("x-position")
             plt.show()
 
 if __name__ == "__main__":
@@ -195,4 +192,3 @@ if __name__ == "__main__":
     obj = DoubleWellDynamics()
     obj.plot_1d(1.2, plot_pot=True, plot_grad=True)
     obj.plot_2d(1.2, plot_pot=True, plot_grad=True)
-
